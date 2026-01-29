@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retirement Planner</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='65' r='35' fill='%232563eb'/%3E%3Ccircle cx='50' cy='25' r='20' fill='%23f97316'/%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <div class="container">
+                <div class="header-inner">
+                    <div class="logo">
+                        <div class="logo-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+                                <ellipse cx="50" cy="70" rx="45" ry="25" fill="#3b82f6" opacity="0.8"/>
+                                <circle cx="50" cy="35" r="22" fill="#f97316"/>
+                            </svg>
+                        </div>
+                        <span class="logo-text">Retirement Planner</span>
+                    </div>
+                    <div class="header-tagline">Plan Your Financial Independence</div>
+                </div>
+            </div>
+        </header>
+
+        <main class="main">
+            <div class="container">
+                <div class="main-grid">
+                    <div class="card" id="inputCard">
+                        <div class="card-body">
+                            <p class="required-note">* Required fields</p>
+                            <form id="calculatorForm" onsubmit="event.preventDefault(); calculate();">
+                                <div class="form-section">
+                                    <div class="section-title">Your Details</div>
+                                    <div class="form-group">
+                                        <label class="form-label required">Yearly Retirement Income (at today's rate)
+                                            <span class="tooltip-icon">?<span class="tooltip-text">Your expected yearly expenses during retirement at today's prices.</span></span>
+                                        </label>
+                                        <div class="input-wrapper">
+                                            <span class="input-prefix currency-symbol">₹</span>
+                                            <input type="number" class="form-input has-prefix" id="yearlyExpenses" required min="0" placeholder="1200000">
+                                        </div>
+                                        <div class="form-error"></div>
+                                    </div>
+                                    <div class="form-row two-col">
+                                        <div class="form-group">
+                                            <label class="form-label required">Current Equity Investment
+                                                <span class="tooltip-icon">?<span class="tooltip-text">Total in stocks, mutual funds, or equity instruments.</span></span>
+                                            </label>
+                                            <div class="input-wrapper">
+                                                <span class="input-prefix currency-symbol">₹</span>
+                                                <input type="number" class="form-input has-prefix" id="currentEquity" required min="0" placeholder="5000000">
+                                            </div>
+                                            <div class="form-error"></div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label required">Current Debt Investment
+                                                <span class="tooltip-icon">?<span class="tooltip-text">Total in FDs, bonds, PPF, debt mutual funds.</span></span>
+                                            </label>
+                                            <div class="input-wrapper">
+                                                <span class="input-prefix currency-symbol">₹</span>
+                                                <input type="number" class="form-input has-prefix" id="currentDebt" required min="0" placeholder="5000000">
+                                            </div>
+                                            <div class="form-error"></div>
+                                        </div>
+                                    </div>
+                                    <div class="form-row two-col">
+                                        <div class="form-group">
+                                            <label class="form-label required">Years to Retire
+                                                <span class="tooltip-icon">?<span class="tooltip-text">Years until retirement. Enter 0 for immediate retirement.</span></span>
+                                            </label>
+                                            <div class="input-wrapper">
+                                                <input type="number" class="form-input has-suffix" id="yearsToRetire" required min="0" max="50" placeholder="10">
+                                                <span class="input-suffix">years</span>
+                                            </div>
+                                            <div class="form-error"></div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label required">Retirement Duration
+                                                <span class="tooltip-icon">?<span class="tooltip-text">How long your corpus should last.</span></span>
+                                            </label>
+                                            <div class="radio-group">
+                                                <button type="button" class="radio-btn duration-btn" data-duration="perpetual" onclick="selectDuration('perpetual')">Perpetual</button>
+                                                <button type="button" class="radio-btn duration-btn" data-duration="30" onclick="selectDuration('30')">30 yrs</button>
+                                                <button type="button" class="radio-btn duration-btn" data-duration="25" onclick="selectDuration('25')">25 yrs</button>
+                                                <button type="button" class="radio-btn duration-btn" data-duration="20" onclick="selectDuration('20')">20 yrs</button>
+                                                <button type="button" class="radio-btn duration-btn" data-duration="15" onclick="selectDuration('15')">15 yrs</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label required">Stock Market
+                                            <span class="tooltip-icon">?<span class="tooltip-text">Sensex for India, S&P 500 for US.</span></span>
+                                        </label>
+                                        <div class="toggle-group">
+                                            <button type="button" class="toggle-btn market-toggle" data-market="sensex" onclick="selectMarket('sensex')">🇮🇳 Sensex</button>
+                                            <button type="button" class="toggle-btn market-toggle" data-market="sp500" onclick="selectMarket('sp500')">🇺🇸 S&P 500</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-section">
+                                    <div class="section-title">Market Assumptions (Editable)</div>
+                                    <div class="form-row three-col">
+                                        <div class="form-group">
+                                            <label class="form-label">Avg Return %</label>
+                                            <div class="input-wrapper">
+                                                <input type="number" class="form-input has-suffix" id="averageReturn" step="0.5" min="0" max="30" value="12">
+                                                <span class="input-suffix">%</span>
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Dividend %</label>
+                                            <div class="input-wrapper">
+                                                <input type="number" class="form-input has-suffix" id="dividendYield" step="0.05" min="0" max="10" value="1.25">
+                                                <span class="input-suffix">%</span>
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Tax Rate %</label>
+                                            <div class="input-wrapper">
+                                                <input type="number" class="form-input has-suffix" id="taxRate" step="0.5" min="0" max="50" value="12.5">
+                                                <span class="input-suffix">%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="form-row two-col">
+                                        <div class="form-group">
+                                            <label class="form-label">Debt Return %</label>
+                                            <div class="input-wrapper">
+                                                <input type="number" class="form-input has-suffix" id="debtReturn" step="0.5" min="0" max="20" value="7">
+                                                <span class="input-suffix">%</span>
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Inflation %</label>
+                                            <div class="input-wrapper">
+                                                <input type="number" class="form-input has-suffix" id="inflation" step="0.5" min="0" max="20" value="7">
+                                                <span class="input-suffix">%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- SIP Section with INFO TOOLTIP -->
+                                <div class="form-section">
+                                    <div class="section-title">
+                                        SIP Option
+                                        <span class="tooltip-icon">?<span class="tooltip-text">If there is a shortfall and you have at least 10 years to retirement, enable this option to calculate how much you need to invest monthly to achieve your target corpus.</span></span>
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="sip-toggle">
+                                            <span class="sip-toggle-label">Cover retirement gap with SIP?</span>
+                                            <label class="switch">
+                                                <input type="checkbox" id="sipToggle">
+                                                <span class="switch-slider"></span>
+                                            </label>
+                                        </div>
+                                        <div class="sip-options" id="sipOptions">
+                                            <div class="form-group">
+                                                <label class="form-label">SIP Step-up Rate %
+                                                    <span class="tooltip-icon">?<span class="tooltip-text">Annual increase in SIP amount, typically aligned with salary growth.</span></span>
+                                                </label>
+                                                <div class="input-wrapper">
+                                                    <input type="number" class="form-input has-suffix" id="sipStepUp" value="10" step="1" min="0" max="50">
+                                                    <span class="input-suffix">%</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-group" style="display: flex; gap: 1rem;">
+                                    <button type="submit" class="btn btn-primary btn-block">Calculate Retirement Plan</button>
+                                    <button type="button" class="btn btn-secondary" onclick="resetForm()">Reset</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="output-section" id="outputSection">
+                        <div class="summary-card" id="summaryContent"></div>
+
+                        <div class="expandable-section open" id="corpusOptionsSection">
+                            <div class="expandable-header">
+                                <span class="expandable-title"><span>💰</span> Corpus Options</span>
+                                <svg class="expandable-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6,9 12,15 18,9"></polyline></svg>
+                            </div>
+                            <div class="expandable-content" id="corpusOptionsContent"></div>
+                        </div>
+
+                        <div class="expandable-section" id="projectionSection">
+                            <div class="expandable-header">
+                                <span class="expandable-title"><span>📈</span> Investment Projection</span>
+                                <svg class="expandable-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6,9 12,15 18,9"></polyline></svg>
+                            </div>
+                            <div class="expandable-content" id="projectionContent"></div>
+                        </div>
+
+                        <div class="expandable-section" id="gapSection">
+                            <div class="expandable-header">
+                                <span class="expandable-title"><span>📊</span> Gap Analysis</span>
+                                <svg class="expandable-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6,9 12,15 18,9"></polyline></svg>
+                            </div>
+                            <div class="expandable-content" id="gapAnalysisContent"></div>
+                        </div>
+
+                        <div class="expandable-section" id="reallocationSection">
+                            <div class="expandable-header">
+                                <span class="expandable-title"><span>🔄</span> Reallocation Recommendation</span>
+                                <svg class="expandable-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6,9 12,15 18,9"></polyline></svg>
+                            </div>
+                            <div class="expandable-content" id="reallocationContent"></div>
+                        </div>
+
+                        <div class="expandable-section hidden" id="sipSection">
+                            <div class="expandable-header">
+                                <span class="expandable-title"><span>💵</span> SIP Plan</span>
+                                <svg class="expandable-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6,9 12,15 18,9"></polyline></svg>
+                            </div>
+                            <div class="expandable-content" id="sipContent"></div>
+                        </div>
+
+                        <!-- HISTORICAL SIMULATION with INFO TOOLTIP -->
+                        <div class="expandable-section" id="simulationSection">
+                            <div class="expandable-header">
+                                <span class="expandable-title">
+                                    <span>📉</span> Historical Simulation
+                                    <span class="tooltip-icon" style="margin-left: 0.5rem;">?<span class="tooltip-text">This simulation shows how your retirement corpus would have performed if you had invested in different historical market conditions. It helps you understand the range of possible outcomes based on actual past market data.</span></span>
+                                </span>
+                                <svg class="expandable-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6,9 12,15 18,9"></polyline></svg>
+                            </div>
+                            <div class="expandable-content" id="simulationContent"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <div class="container">
+                <div class="footer-content">
+                    <p>Built with historical Sensex (1991-2025) & S&P 500 (1985-2025) data</p>
+                    <button class="disclaimer-toggle" id="disclaimerToggle">
+                        <span>Important Disclaimers</span> <span class="toggle-icon">▼</span>
+                    </button>
+                    <div class="disclaimer-content" id="disclaimerContent">
+                        <div class="disclaimer-item">⚠️ <div><strong>Historical Returns ≠ Future Returns:</strong> Past performance does not guarantee future results.</div></div>
+                        <div class="disclaimer-item">📊 <div><strong>Estimates Only:</strong> All calculations are estimates based on your assumptions.</div></div>
+                        <div class="disclaimer-item">💼 <div><strong>Not Financial Advice:</strong> Please consult a qualified financial advisor.</div></div>
+                        <div class="disclaimer-item">📋 <div><strong>Tax Laws Change:</strong> Consult a tax professional for accurate planning.</div></div>
+                    </div>
+                    <p class="mt-3">© 2025 Retirement Planner</p>
+                </div>
+            </div>
+        </footer>
+
+        <div class="spinner-overlay" id="spinnerOverlay">
+            <div class="spinner"></div>
+            <div class="spinner-text">Calculating your retirement plan...</div>
+        </div>
+    </div>
+
+    <script src="sensex-data.js"></script>
+    <script src="sp500-data.js"></script>
+    <script src="calculations.js"></script>
+    <script src="simulation.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
