@@ -3,7 +3,7 @@
  */
 
 function runSimulationWithRebalancing(params) {
-    const { startingCorpus, yearlyExpenses, equityRatio, yieldRate, debtReturn, dividendYield, inflationRate, taxRate, startYear, marketReturns, maxYears = 50 } = params;
+    const { startingCorpus, yearlyExpenses, equityRatio, yieldRate, debtReturn, inflationRate, taxRate, startYear, marketReturns, maxYears = 50 } = params;
     if (!startingCorpus || startingCorpus <= 0) {
         return { startYear: startYear, yearsSimulated: 0, finalYear: startYear, startingCorpus: 0, endingCorpus: 0, survived: false, ranOutYear: startYear, yearlyData: [] };
     }
@@ -17,7 +17,7 @@ function runSimulationWithRebalancing(params) {
     while (simulationYear < maxYears && year <= endYear && !ranOut) {
         simulationYear++;
         const marketReturn = marketReturns[year] !== undefined ? marketReturns[year] / 100 : 0.05;
-        const totalEquityReturn = marketReturn + (dividendYield / 100);
+        const totalEquityReturn = marketReturn;
         const debtReturnRate = debtReturn / 100, inflation = inflationRate / 100, tax = taxRate / 100, yield_rate = yieldRate / 100;
         currentExpenses *= (1 + inflation);
         const preTaxExpenses = currentExpenses / (1 - tax);

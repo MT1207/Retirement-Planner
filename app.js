@@ -4,8 +4,8 @@
  */
 
 const MARKET_DEFAULTS = {
-    sensex: { currency: '₹', currencySymbol: '₹', locale: 'en-IN', averageReturn: 12, dividendYield: 1.25, taxRate: 12.5, debtReturn: 7, inflation: 7, dataRange: { startYear: 1991, endYear: 2025 } },
-    sp500: { currency: '$', currencySymbol: '$', locale: 'en-US', averageReturn: 9, dividendYield: 1.8, taxRate: 15, debtReturn: 5, inflation: 3, dataRange: { startYear: 1985, endYear: 2025 } }
+    sensex: { currency: '₹', currencySymbol: '₹', locale: 'en-IN', averageReturn: 12, taxRate: 12.5, debtReturn: 7, inflation: 7, dataRange: { startYear: 1991, endYear: 2025 } },
+    sp500: { currency: '$', currencySymbol: '$', locale: 'en-US', averageReturn: 9, taxRate: 15, debtReturn: 5, inflation: 3, dataRange: { startYear: 1985, endYear: 2025 } }
 };
 
 let state = { market: 'sensex', duration: 'perpetual', sipEnabled: false, results: null };
@@ -31,7 +31,6 @@ function selectMarket(market) {
     document.querySelectorAll('.market-toggle').forEach(btn => btn.classList.toggle('active', btn.dataset.market === market));
     const defaults = MARKET_DEFAULTS[market];
     document.getElementById('averageReturn').value = defaults.averageReturn;
-    document.getElementById('dividendYield').value = defaults.dividendYield;
     document.getElementById('taxRate').value = defaults.taxRate;
     document.getElementById('debtReturn').value = defaults.debtReturn;
     document.getElementById('inflation').value = defaults.inflation;
@@ -91,7 +90,6 @@ function getInputValues() {
         yearsToRetire: parseInt(document.getElementById('yearsToRetire').value) || 0,
         duration: state.duration,
         averageReturn: parseFloat(document.getElementById('averageReturn').value) || defaults.averageReturn,
-        dividendYield: parseFloat(document.getElementById('dividendYield').value) || defaults.dividendYield,
         taxRate: parseFloat(document.getElementById('taxRate').value) || defaults.taxRate,
         debtReturn: parseFloat(document.getElementById('debtReturn').value) || defaults.debtReturn,
         inflation: parseFloat(document.getElementById('inflation').value) || defaults.inflation,
@@ -108,18 +106,17 @@ function performCalculations(inputs) {
     const perpetualCorpus = calculateRequiredCorpus(expensesAtRetirement, yieldResult.yield);
     const corpusOptions = calculateCorpusOptions(inputs, expensesAtRetirement, yieldResult.yield, marketReturns, inputs.dataRange);
     const selectedCorpus = corpusOptions[inputs.duration] || corpusOptions['perpetual'];
-    const totalReturn = inputs.averageReturn + inputs.dividendYield;
-    const projection = calculateInvestmentProjection(inputs.currentEquity, inputs.currentDebt, totalReturn, inputs.debtReturn, inputs.yearsToRetire);
+    const projection = calculateInvestmentProjection(inputs.currentEquity, inputs.currentDebt, inputs.averageReturn, inputs.debtReturn, inputs.yearsToRetire);
     const gapAnalysis = calculateGapAnalysis(selectedCorpus.corpus, projection.futureTotal);
     const idealAllocation = calculateIdealAllocation(selectedCorpus.corpus, 0.85);
-    const reallocation = calculateReallocation(inputs.currentEquity, inputs.currentDebt, idealAllocation.idealEquity, idealAllocation.idealDebt, totalReturn, inputs.debtReturn, inputs.yearsToRetire);
+    const reallocation = calculateReallocation(inputs.currentEquity, inputs.currentDebt, idealAllocation.idealEquity, idealAllocation.idealDebt, inputs.averageReturn, inputs.debtReturn, inputs.yearsToRetire);
     
     let sipPlan = null;
     if (inputs.sipEnabled && gapAnalysis.status === 'shortfall') {
-        const newProjection = calculateInvestmentProjection(reallocation.newEquity, reallocation.newDebt, totalReturn, inputs.debtReturn, inputs.yearsToRetire);
+        const newProjection = calculateInvestmentProjection(reallocation.newEquity, reallocation.newDebt, inputs.averageReturn, inputs.debtReturn, inputs.yearsToRetire);
         const totalGap = selectedCorpus.corpus - newProjection.futureTotal;
         if (totalGap > 0 && inputs.yearsToRetire > 0) {
-            const equitySIP = calculateSIPForTarget(totalGap, totalReturn, inputs.sipStepUp, inputs.yearsToRetire);
+            const equitySIP = calculateSIPForTarget(totalGap, inputs.averageReturn, inputs.sipStepUp, inputs.yearsToRetire);
             sipPlan = { equitySIP, debtSIP: { monthlySIP: 0 }, totalInitialSIP: equitySIP.monthlySIP, totalFinalSIP: equitySIP.finalMonthlySIP, totalInvested: equitySIP.totalInvested, moveToDebtAtRetirement: idealAllocation.idealDebt - newProjection.futureDebt };
         }
     }
@@ -138,7 +135,7 @@ function calculateCorpusOptions(inputs, expensesAtRetirement, perpetualYield, ma
             const testYears = selectSimulationYears(validYears, Math.min(5, validYears.length), [], marketReturns);
             if (testYears.length > 0) {
                 try {
-                    const corpusResult = findCorpusForDuration({ yearlyExpenses: expensesAtRetirement, equityRatio: 0.85, yieldRate: perpetualYield, debtReturn: inputs.debtReturn, dividendYield: inputs.dividendYield, inflationRate: inputs.inflation, taxRate: inputs.taxRate }, years, testYears, marketReturns);
+                    const corpusResult = findCorpusForDuration({ yearlyExpenses: expensesAtRetirement, equityRatio: 0.85, yieldRate: perpetualYield, debtReturn: inputs.debtReturn, inflationRate: inputs.inflation, taxRate: inputs.taxRate }, years, testYears, marketReturns);
                     options[years.toString()] = { duration: `${years} years`, corpus: corpusResult.avgCorpus, range: { min: corpusResult.minCorpus, max: corpusResult.maxCorpus } };
                 } catch (e) {
                     options[years.toString()] = { duration: `${years} years`, corpus: options.perpetual.corpus * (years / 50), range: null, estimated: true };
@@ -163,7 +160,7 @@ function runHistoricalSimulation(inputs, corpus, yieldRate, marketReturns, dataR
     const results85_15 = [], results60_40 = [];
     
     testYears.forEach(startYear => {
-        const params = { startingCorpus: corpus, yearlyExpenses: expensesForSim, yieldRate, debtReturn: inputs.debtReturn, dividendYield: inputs.dividendYield, inflationRate: inputs.inflation, taxRate: inputs.taxRate, startYear, marketReturns, maxYears: 50 };
+        const params = { startingCorpus: corpus, yearlyExpenses: expensesForSim, yieldRate, debtReturn: inputs.debtReturn, inflationRate: inputs.inflation, taxRate: inputs.taxRate, startYear, marketReturns, maxYears: 50 };
         results85_15.push(runSimulationWithRebalancing({ ...params, equityRatio: 0.85 }));
         results60_40.push(runSimulationWithRebalancing({ ...params, equityRatio: 0.60 }));
     });
