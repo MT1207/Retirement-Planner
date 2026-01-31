@@ -4,8 +4,8 @@
  */
 
 const MARKET_DEFAULTS = {
-    sensex: { currency: '₹', currencySymbol: '₹', locale: 'en-IN', averageReturn: 12, taxRate: 12.5, debtReturn: 7, inflation: 7, dataRange: { startYear: 1991, endYear: 2025 } },
-    sp500: { currency: '$', currencySymbol: '$', locale: 'en-US', averageReturn: 9, taxRate: 15, debtReturn: 5, inflation: 3, dataRange: { startYear: 1985, endYear: 2025 } }
+    sensex: { currency: '₹', currencySymbol: '₹', locale: 'en-IN', averageReturn: 12, taxRate: 12.5, debtReturn: 7, inflation: 7, dataRange: { startYear: 1992, endYear: 2025 } },
+    sp500: { currency: '$', currencySymbol: '$', locale: 'en-US', averageReturn: 9, taxRate: 15, debtReturn: 5, inflation: 3, dataRange: { startYear: 1986, endYear: 2025 } }
 };
 
 let state = { market: 'sensex', duration: 'perpetual', sipEnabled: false, results: null };
@@ -276,7 +276,7 @@ function renderSimulation(results) {
     const sim85 = simulation.split85_15, sim60 = simulation.split60_40;
     const isSurplus = gapAnalysis.isSurplus;
     
-    let tableHtml = `<div class="info-box mb-3"><svg class="info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg><div>This simulation shows how your retirement corpus would have performed if you had invested in different historical market conditions (${inputs.market === 'sensex' ? 'Sensex 1991-2025' : 'S&P 500 1985-2025'}). It helps you understand the range of possible outcomes.</div></div>`;
+    let tableHtml = `<div class="info-box mb-3"><svg class="info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg><div>This simulation shows how your retirement corpus would have performed if you had invested in different historical market conditions (${inputs.market === 'sensex' ? 'Sensex 1992-2025' : 'S&P 500 1986-2025'}). It helps you understand the range of possible outcomes.</div></div>`;
     tableHtml += `<p class="text-muted mb-3">Your Corpus: ${formatCurrency(simulationCorpus, inputs)}</p>`;
     
     if (isSurplus) {
@@ -313,7 +313,7 @@ function formatCurrency(amount, inputs) {
         return `${currencySymbol}${amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
     } else {
         if (Math.abs(amount) >= 1000000) return `${currencySymbol}${(amount / 1000000).toFixed(2)}M`;
-        if (Math.abs(amount) >= 1000) return `${currencySymbol}${(amount / 1000).toFixed(0)}K`;
+        if (Math.abs(amount) >= 100000) return `${currencySymbol}${(amount / 1000).toFixed(0)}K`;
         return `${currencySymbol}${amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
     }
 }
