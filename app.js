@@ -206,25 +206,40 @@ function renderCorpusOptions(results) {
                 <div class="metric-value" style="font-size: 1.5rem;">${formatCurrency(selectedCorpus.corpus, inputs)}</div>
                 <div class="text-muted mt-2">Yield: ${yieldResult.yield.toFixed(2)}%</div>
             </div>
-        </div>
-        <!-- Updated info message - Option 3 -->
+        </div>`;
+    
+    // Show info message based on selection
+    if (inputs.duration === 'perpetual') {
+        html += `
         <div class="info-box mt-3">
             <svg class="info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-            <div>The corpus ranges below show your potential remaining wealth after withdrawing inflation-adjusted expenses for 15, 20, and 25 years — calculated using actual historical market returns to give you a realistic reference.</div>
-        </div>
-        <h4 style="margin: 1rem 0 0.75rem; font-size: 0.875rem; color: var(--text-secondary);">Alternative Options</h4>
-        <table class="data-table"><thead><tr><th>Duration</th><th class="text-right">Corpus Required</th><th class="text-right">Range</th><th class="text-right">You Save</th></tr></thead><tbody>`;
-    
-    const perpetualCorpus = corpusOptions.perpetual.corpus;
-    ['perpetual', '30', '25', '20', '15'].forEach(key => {
-        if (corpusOptions[key] && key !== inputs.duration) {
-            const option = corpusOptions[key];
-            const savings = perpetualCorpus - option.corpus;
-            const rangeText = option.range ? `${formatCurrencyShort(option.range.min, inputs)} - ${formatCurrencyShort(option.range.max, inputs)}` : (option.estimated ? 'Estimated' : '-');
-            html += `<tr><td>${option.duration}</td><td class="text-right">${formatCurrency(option.corpus, inputs)}</td><td class="text-right">${rangeText}</td><td class="text-right ${savings > 0 ? 'text-success' : ''}">${savings > 0 ? formatCurrency(savings, inputs) : '-'}</td></tr>`;
+            <div>This corpus is designed to last indefinitely by withdrawing only the sustainable yield each year, preserving your principal while keeping pace with inflation.</div>
+        </div>`;
+    } else {
+        html += `
+        <div class="info-box mt-3">
+            <svg class="info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+            <div>This corpus is calculated to last ${selectedCorpus.duration} based on historical market simulations. The range shows minimum to maximum corpus needed across different starting years.</div>
+        </div>`;
+        
+        // Show range only for non-perpetual options
+        if (selectedCorpus.range) {
+            html += `
+            <div class="metric-grid mt-3">
+                <div class="metric-box">
+                    <div class="metric-label">Minimum Required</div>
+                    <div class="metric-value">${formatCurrency(selectedCorpus.range.min, inputs)}</div>
+                    <div class="text-muted">Best case scenario</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">Maximum Required</div>
+                    <div class="metric-value">${formatCurrency(selectedCorpus.range.max, inputs)}</div>
+                    <div class="text-muted">Worst case scenario</div>
+                </div>
+            </div>`;
         }
-    });
-    html += `</tbody></table>`;
+    }
+    
     document.getElementById('corpusOptionsContent').innerHTML = html;
 }
 
@@ -276,27 +291,42 @@ function renderSimulation(results) {
     const sim85 = simulation.split85_15, sim60 = simulation.split60_40;
     const isSurplus = gapAnalysis.isSurplus;
     
-    let tableHtml = `<div class="info-box mb-3"><svg class="info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg><div>This simulation shows how your retirement corpus would have performed if you had invested in different historical market conditions (${inputs.market === 'sensex' ? 'Sensex 1992-2025' : 'S&P 500 1986-2025'}). It helps you understand the range of possible outcomes.</div></div>`;
+    // Get P/E data based on market
+    const peData = inputs.market === 'sensex' ? (typeof getSensexPE === 'function' ? getSensexPE() : {}) : (typeof getSP500PE === 'function' ? getSP500PE() : {});
+    const avgPE = inputs.market === 'sensex' ? 21.5 : 19.7;
+    
+    // Helper to format P/E with color coding
+    const formatPE = (year) => {
+        const pe = peData[year - 1]; // Previous year's P/E
+        if (!pe) return '<span class="text-muted">-</span>';
+        let color = 'var(--text-secondary)';
+        let label = '';
+        if (pe < 15) { color = 'var(--success)'; label = ' (Low)'; }
+        else if (pe > 25) { color = 'var(--danger)'; label = ' (High)'; }
+        return `<span style="color: ${color}; font-weight: 500;">${pe.toFixed(1)}${label}</span>`;
+    };
+    
+    let tableHtml = `<div class="info-box mb-3"><svg class="info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg><div>This simulation shows how your retirement corpus would have performed if you had invested in different historical market conditions (${inputs.market === 'sensex' ? 'Sensex 1992-2025' : 'S&P 500 1986-2025'}). <strong>Prev P/E</strong> shows the previous year's P/E ratio - <span style="color: var(--success);">Low P/E (&lt;15)</span> historically leads to better returns, <span style="color: var(--danger);">High P/E (&gt;25)</span> to lower returns.</div></div>`;
     tableHtml += `<p class="text-muted mb-3">Your Corpus: ${formatCurrency(simulationCorpus, inputs)}</p>`;
     
     if (isSurplus) {
-        tableHtml += `<h4 style="margin: 1rem 0 0.75rem; font-size: 0.875rem; color: var(--text-secondary);">Corpus Growth After Yearly Withdrawals</h4><table class="data-table"><thead><tr><th>Starting Year</th><th class="text-right">Period</th><th class="text-right">Ending Corpus (85:15)</th><th class="text-right">Ending Corpus (60:40)</th></tr></thead><tbody>`;
+        tableHtml += `<h4 style="margin: 1rem 0 0.75rem; font-size: 0.875rem; color: var(--text-secondary);">Corpus Growth After Yearly Withdrawals</h4><table class="data-table"><thead><tr><th>Starting Year</th><th class="text-center">Prev P/E</th><th class="text-right">Period</th><th class="text-right">Ending Corpus (85:15)</th><th class="text-right">Ending Corpus (60:40)</th></tr></thead><tbody>`;
         for (let i = 0; i < sim85.results.length; i++) {
             const r85 = sim85.results[i], r60 = sim60.results[i];
             const result85 = r85.survived ? formatCurrency(r85.endingCorpus, inputs) : `Ran out year ${r85.ranOutYear}`;
             const result60 = r60.survived ? formatCurrency(r60.endingCorpus, inputs) : `Ran out year ${r60.ranOutYear}`;
             const return85 = r85.survived && simulationCorpus > 0 ? `<br><span class="text-success text-muted">(${((r85.endingCorpus / simulationCorpus - 1) * 100).toFixed(0)}%)</span>` : '';
             const return60 = r60.survived && simulationCorpus > 0 ? `<br><span class="text-success text-muted">(${((r60.endingCorpus / simulationCorpus - 1) * 100).toFixed(0)}%)</span>` : '';
-            tableHtml += `<tr><td>${r85.startYear}</td><td class="text-right">${r85.yearsSimulated} years</td><td class="text-right">${result85}${return85}</td><td class="text-right">${result60}${return60}</td></tr>`;
+            tableHtml += `<tr><td>${r85.startYear}</td><td class="text-center">${formatPE(r85.startYear)}</td><td class="text-right">${r85.yearsSimulated} years</td><td class="text-right">${result85}${return85}</td><td class="text-right">${result60}${return60}</td></tr>`;
         }
     } else {
-        tableHtml += `<h4 style="margin: 1rem 0 0.75rem; font-size: 0.875rem; color: var(--text-secondary);">How Long Your Money Lasts</h4><table class="data-table"><thead><tr><th>Starting Year</th><th class="text-right">85:15 Split</th><th class="text-right">60:40 Split</th><th>Status</th></tr></thead><tbody>`;
+        tableHtml += `<h4 style="margin: 1rem 0 0.75rem; font-size: 0.875rem; color: var(--text-secondary);">How Long Your Money Lasts</h4><table class="data-table"><thead><tr><th>Starting Year</th><th class="text-center">Prev P/E</th><th class="text-right">85:15 Split</th><th class="text-right">60:40 Split</th><th>Status</th></tr></thead><tbody>`;
         for (let i = 0; i < sim85.results.length; i++) {
             const r85 = sim85.results[i], r60 = sim60.results[i];
             const result85 = r85.survived ? `${r85.yearsSimulated} years (${formatCurrencyShort(r85.endingCorpus, inputs)} left)` : `${r85.yearsSimulated} years`;
             const result60 = r60.survived ? `${r60.yearsSimulated} years (${formatCurrencyShort(r60.endingCorpus, inputs)} left)` : `${r60.yearsSimulated} years`;
             const status = !r85.survived || !r60.survived ? '<span class="badge badge-danger">Ran out</span>' : '<span class="badge badge-success">Survived</span>';
-            tableHtml += `<tr><td>${r85.startYear}</td><td class="text-right">${result85}</td><td class="text-right">${result60}</td><td>${status}</td></tr>`;
+            tableHtml += `<tr><td>${r85.startYear}</td><td class="text-center">${formatPE(r85.startYear)}</td><td class="text-right">${result85}</td><td class="text-right">${result60}</td><td>${status}</td></tr>`;
         }
     }
     tableHtml += `</tbody></table>`;
