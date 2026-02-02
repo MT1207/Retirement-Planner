@@ -8,11 +8,12 @@ const MARKET_DEFAULTS = {
     sp500: { currency: '$', currencySymbol: '$', locale: 'en-US', averageReturn: 9, taxRate: 15, debtReturn: 5, inflation: 3, dataRange: { startYear: 1986, endYear: 2025 } }
 };
 
-let state = { market: 'sensex', duration: 'perpetual', sipEnabled: false, results: null };
+let state = { market: 'sensex', duration: 'perpetual', sipEnabled: false, results: null, planResults: null };
 
 document.addEventListener('DOMContentLoaded', function() {
     selectMarket('sensex');
     selectDuration('perpetual');
+    updatePlanMarket();
     document.getElementById('sipToggle').addEventListener('change', function() {
         state.sipEnabled = this.checked;
         document.getElementById('sipOptions').classList.toggle('show', this.checked);
@@ -24,6 +25,8 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('disclaimerContent').classList.toggle('show');
         this.querySelector('.toggle-icon').textContent = document.getElementById('disclaimerContent').classList.contains('show') ? '▲' : '▼';
     });
+    // Initialize Tab 1 market
+    updatePlanMarket();
 });
 
 function selectMarket(market) {
@@ -441,4 +444,299 @@ function resetForm() {
     document.getElementById('outputSection').classList.remove('show');
     document.querySelectorAll('.form-input.error').forEach(el => el.classList.remove('error'));
     document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
+}
+
+// ============================================
+// TAB 1: RETIREMENT PLANNING
+// ============================================
+
+function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+    
+    // Autofill Tab 2 from Tab 1 values
+    if (tab === 'crunch') {
+        const planMonthly = parseFloat(document.getElementById('planMonthly').value);
+        if (planMonthly && planMonthly > 0) {
+            const planEquity = parseFloat(document.getElementById('planEquity').value) || 0;
+            const planDebt = parseFloat(document.getElementById('planDebt').value) || 0;
+            const planYears = document.getElementById('planYears').value;
+            const planMarket = document.getElementById('planMarket').value;
+            
+            document.getElementById('yearlyExpenses').value = Math.round(planMonthly * 12);
+            document.getElementById('currentEquity').value = planEquity;
+            document.getElementById('currentDebt').value = planDebt;
+            if (planYears !== '') document.getElementById('yearsToRetire').value = planYears;
+            
+            selectMarket(planMarket);
+            selectDuration('perpetual');
+            
+            // Enable SIP if Tab 1 showed a shortfall
+            if (state.planResults && !state.planResults.gapAnalysis.isSurplus) {
+                document.getElementById('sipToggle').checked = true;
+                state.sipEnabled = true;
+                document.getElementById('sipOptions').classList.add('show');
+            }
+        }
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function updatePlanMarket() {
+    const market = document.getElementById('planMarket').value;
+    const symbol = MARKET_DEFAULTS[market].currencySymbol;
+    document.querySelectorAll('.currency-symbol-plan').forEach(el => el.textContent = symbol);
+}
+
+function calculatePlan() {
+    const errorEl = document.getElementById('planError');
+    const monthly = parseFloat(document.getElementById('planMonthly').value);
+    const yearsVal = document.getElementById('planYears').value;
+    
+    // Clear previous errors
+    document.querySelectorAll('.story-input.error').forEach(el => el.classList.remove('error'));
+    if (errorEl) errorEl.classList.remove('show');
+    
+    if (!monthly || monthly <= 0) {
+        if (errorEl) { errorEl.textContent = 'Please enter your monthly expenses.'; errorEl.classList.add('show'); }
+        document.getElementById('planMonthly').classList.add('error');
+        document.getElementById('planMonthly').focus();
+        return;
+    }
+    if (yearsVal === '' || isNaN(parseInt(yearsVal)) || parseInt(yearsVal) < 0) {
+        if (errorEl) { errorEl.textContent = 'Please enter years to retirement (0 or more).'; errorEl.classList.add('show'); }
+        document.getElementById('planYears').classList.add('error');
+        document.getElementById('planYears').focus();
+        return;
+    }
+    
+    const equity = parseFloat(document.getElementById('planEquity').value) || 0;
+    const debt = parseFloat(document.getElementById('planDebt').value) || 0;
+    const market = document.getElementById('planMarket').value;
+    const years = parseInt(yearsVal);
+    const defaults = MARKET_DEFAULTS[market];
+    
+    const inputs = {
+        market, currency: defaults.currency, currencySymbol: defaults.currencySymbol, locale: defaults.locale,
+        yearlyExpenses: monthly * 12, currentEquity: equity, currentDebt: debt, yearsToRetire: years,
+        duration: 'perpetual', averageReturn: defaults.averageReturn, taxRate: defaults.taxRate,
+        debtReturn: defaults.debtReturn, inflation: defaults.inflation,
+        sipEnabled: true, sipStepUp: 10, dataRange: defaults.dataRange
+    };
+    
+    try {
+        const results = performCalculations(inputs);
+        state.planResults = results;
+        renderPlanResults(results);
+    } catch (e) {
+        console.error('Calculation error:', e);
+        if (errorEl) { errorEl.textContent = 'Something went wrong. Please check your inputs.'; errorEl.classList.add('show'); }
+    }
+}
+
+function computePlanStressTest(results) {
+    const { inputs, selectedCorpus, yield: yieldResult, expensesAtRetirement } = results;
+    const marketReturns = inputs.market === 'sensex' ? getSensexReturns() : getSP500Returns();
+    const peData = inputs.market === 'sensex' ? (typeof getSensexPE === 'function' ? getSensexPE() : {}) : (typeof getSP500PE === 'function' ? getSP500PE() : {});
+    const expensesForSim = inputs.yearsToRetire === 0 ? inputs.yearlyExpenses : expensesAtRetirement;
+    const allYears = Object.keys(marketReturns).map(Number).sort((a, b) => a - b);
+    const validYears = allYears.filter(y => y <= allYears[allYears.length - 1] - 10);
+    const failures = [];
+    
+    validYears.forEach(startYear => {
+        const baseParams = { startingCorpus: selectedCorpus.corpus, yearlyExpenses: expensesForSim, yieldRate: yieldResult.yield, debtReturn: inputs.debtReturn, inflationRate: inputs.inflation, taxRate: inputs.taxRate, startYear, marketReturns, maxYears: 50 };
+        const r85 = runSimulationWithRebalancing({ ...baseParams, equityRatio: 0.85 });
+        const r60 = runSimulationWithRebalancing({ ...baseParams, equityRatio: 0.60 });
+        if (!r85.survived || !r60.survived) {
+            failures.push({ startYear, prevPE: peData[startYear - 1] || null, s85: { survived: r85.survived, yearsLasted: r85.yearsSimulated, ranOutYear: r85.ranOutYear }, s60: { survived: r60.survived, yearsLasted: r60.yearsSimulated, ranOutYear: r60.ranOutYear } });
+        }
+    });
+    
+    return { totalCount: validYears.length, failCount: failures.length, failures, peData };
+}
+
+function renderPlanResults(results) {
+    const { inputs, selectedCorpus, projection, gapAnalysis, sipPlan, yield: yieldResult, expensesAtRetirement } = results;
+    const isSurplus = gapAnalysis.isSurplus;
+    
+    // Q1: How much do I need?
+    document.getElementById('planA1').innerHTML = `
+        <div class="answer-hero">${formatCurrency(selectedCorpus.corpus, inputs)}</div>
+        <div class="answer-explain">This retirement fund will generate ${formatCurrency(expensesAtRetirement, inputs)} every year — enough to cover your expenses forever, even with ${inputs.inflation}% inflation.</div>`;
+    
+    // Q2: Am I on track?
+    const ratio = selectedCorpus.corpus > 0 ? projection.futureTotal / selectedCorpus.corpus : 0;
+    const pct = Math.round(ratio * 100);
+    const barPct = Math.min(pct, 100);
+    const barClass = isSurplus ? 'surplus' : 'shortfall';
+    const projLabel = inputs.yearsToRetire > 0
+        ? `Your investments will grow to <strong>${formatCurrency(projection.futureTotal, inputs)}</strong> in ${inputs.yearsToRetire} years.`
+        : `Your current investments total <strong>${formatCurrency(projection.futureTotal, inputs)}</strong>.`;
+    const gapLabel = isSurplus
+        ? `That's <strong>${formatCurrency(gapAnalysis.difference, inputs)} more</strong> than you need.`
+        : `You need <strong>${formatCurrency(gapAnalysis.difference, inputs)} more</strong> to be fully covered.`;
+    
+    document.getElementById('planA2').innerHTML = `
+        <div class="progress-wrap">
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill ${barClass}" style="width: ${barPct}%">${pct}%</div>
+            </div>
+            <div class="progress-labels">
+                <div class="progress-label-left">Your investments → ${formatCurrency(projection.futureTotal, inputs)}</div>
+                <div class="progress-label-right">Need ${formatCurrency(selectedCorpus.corpus, inputs)}</div>
+            </div>
+        </div>
+        <div class="answer-explain">${projLabel} ${gapLabel}</div>`;
+    
+    // Q3: Action / Cushion
+    if (isSurplus) {
+        document.getElementById('planQ3Title').textContent = 'How much extra cushion do I have?';
+        document.getElementById('planA3').innerHTML = `
+            <div class="answer-hero success">${formatCurrency(gapAnalysis.difference, inputs)}</div>
+            <div class="answer-explain">${inputs.yearsToRetire > 0 ? "Even without investing more, you're covered." : "You already have more than enough."} Your surplus provides a comfortable buffer against unexpected expenses or market downturns.</div>`;
+    } else if (sipPlan && sipPlan.totalInitialSIP > 0) {
+        document.getElementById('planQ3Title').textContent = 'What should I save every month?';
+        document.getElementById('planA3').innerHTML = `
+            <div class="answer-hero">${formatCurrency(sipPlan.totalInitialSIP, inputs)}/month</div>
+            <div class="answer-explain">Start with this amount and increase it by 10% every year. In ${inputs.yearsToRetire} years, you'll have invested a total of ${formatCurrency(sipPlan.totalInvested, inputs)} to close the gap.</div>`;
+    } else if (!isSurplus && inputs.yearsToRetire === 0) {
+        document.getElementById('planQ3Title').textContent = 'What should I do?';
+        document.getElementById('planA3').innerHTML = `
+            <div class="answer-hero warning">${formatCurrency(gapAnalysis.difference, inputs)} short</div>
+            <div class="answer-explain">Since you're retiring now, a monthly SIP won't help. Consider consulting a financial advisor, or adjust your expected expenses to match your current savings.</div>`;
+    } else {
+        document.getElementById('planQ3Title').textContent = 'What should I do?';
+        document.getElementById('planA3').innerHTML = `<div class="answer-explain">Consider speaking with a financial advisor about strategies to bridge the gap.</div>`;
+    }
+    
+    // Pre-compute stress test once (used by Q4 and Deeper Dive)
+    const stressData = computePlanStressTest(results);
+    
+    // Q4: Stress test (simplified)
+    const marketLabel = inputs.market === 'sensex' ? 'Indian market' : 'US market';
+    if (stressData.totalCount === 0) {
+        document.getElementById('planA4').innerHTML = '<div class="answer-explain">Insufficient historical data for stress testing.</div>';
+    } else if (stressData.failCount === 0) {
+        document.getElementById('planA4').innerHTML = `
+            <div class="stress-pass">
+                <div class="stress-pass-text">✓ Yes, in all historical scenarios.</div>
+                <div class="stress-pass-detail">We tested your retirement fund against ${stressData.totalCount} years of real ${marketLabel} history (including 2008). It survived every time.</div>
+            </div>`;
+    } else {
+        const passCount = stressData.totalCount - stressData.failCount;
+        document.getElementById('planA4').innerHTML = `
+            <div class="stress-warn">
+                <div class="stress-warn-text">⚠ Mostly yes — survived ${passCount} of ${stressData.totalCount} scenarios.</div>
+                <div class="stress-warn-detail">It struggled in ${stressData.failCount} scenario${stressData.failCount > 1 ? 's' : ''} when markets were at extreme valuations. See Deeper Dive for details.</div>
+            </div>`;
+    }
+    
+    // Deeper Dive
+    renderDeeperDive(results, stressData);
+    
+    // Show results, collapse deeper dive
+    const resultsEl = document.getElementById('planResults');
+    resultsEl.classList.add('show');
+    document.getElementById('deeperDiveSection').classList.remove('open');
+    setTimeout(() => resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+}
+
+function renderDeeperDive(results, stressData) {
+    const { inputs, corpusOptions, selectedCorpus, expensesAtRetirement, yield: yieldResult, reallocation, sipPlan, simulation, simulationCorpus } = results;
+    let html = '';
+    
+    // 1. Duration alternatives
+    html += '<div class="dd-item"><div class="dd-question">What if I don\'t need it to last forever?</div><div class="dd-answer">';
+    [30, 25, 20, 15].forEach((yrs, idx) => {
+        const opt = corpusOptions[yrs.toString()];
+        if (opt) {
+            const saved = selectedCorpus.corpus - opt.corpus;
+            const border = idx < 3 ? 'border-bottom: 1px solid var(--border);' : '';
+            html += `<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; ${border}"><span style="font-weight: 500;">${yrs} years</span><span><strong>${formatCurrency(opt.corpus, inputs)}</strong> <span class="text-muted" style="font-size: 0.8125rem;">(save ${formatCurrency(saved, inputs)})</span></span></div>`;
+        }
+    });
+    html += '</div></div>';
+    
+    // 2. Inflation projection
+    if (inputs.yearsToRetire > 0) {
+        const mNow = inputs.yearlyExpenses / 12, mRetire = expensesAtRetirement / 12;
+        html += `<div class="dd-item"><div class="dd-question">What will my expenses be at retirement?</div><div class="dd-answer">${formatCurrency(mNow, inputs)}/month today → <strong>${formatCurrency(mRetire, inputs)}/month</strong> in ${inputs.yearsToRetire} years (${inputs.inflation}% inflation).</div></div>`;
+    }
+    
+    // 3. Allocation
+    const ct = inputs.currentEquity + inputs.currentDebt;
+    const eqP = ct > 0 ? Math.round(inputs.currentEquity / ct * 100) : 0;
+    const dtP = ct > 0 ? Math.round(inputs.currentDebt / ct * 100) : 0;
+    let allocNote = '';
+    if (reallocation.action === 'move' && reallocation.from === 'debt') {
+        allocNote = `<br><strong>Action:</strong> Move ${formatCurrency(reallocation.amount, inputs)} from debt to equity.`;
+    } else if (reallocation.debtShortfallAtRetirement > 0) {
+        allocNote = `<br><strong>Plan:</strong> At retirement, move ${formatCurrency(reallocation.debtShortfallAtRetirement, inputs)} from equity to debt.`;
+    }
+    html += `<div class="dd-item"><div class="dd-question">How should I split equity and debt?</div><div class="dd-answer">Target: <strong>85% equity, 15% debt</strong><br>Current: ${eqP}% equity, ${dtP}% debt${allocNote}</div></div>`;
+    
+    // 4. SIP schedule
+    if (sipPlan && sipPlan.equitySIP && sipPlan.equitySIP.yearlySchedule && sipPlan.equitySIP.yearlySchedule.length > 0) {
+        let rows = '';
+        sipPlan.equitySIP.yearlySchedule.forEach((item, i) => { rows += `<tr><td>Year ${i + 1}</td><td class="text-right">${formatCurrency(item.monthlySIP, inputs)}</td></tr>`; });
+        html += `<div class="dd-item"><div class="dd-question">Year-by-year SIP schedule</div><div class="dd-answer"><div style="font-size: 0.8125rem; color: var(--text-muted); margin-bottom: 0.5rem;">10% step-up yearly | Total invested: ${formatCurrency(sipPlan.totalInvested, inputs)}</div><table class="data-table" style="font-size: 0.8125rem;"><thead><tr><th>Year</th><th class="text-right">Monthly SIP</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+    }
+    
+    // 5. Yield
+    html += `<div class="dd-item"><div class="dd-question">What is my safe withdrawal rate?</div><div class="dd-answer">Your safe annual yield is <strong>${yieldResult.yield.toFixed(2)}%</strong>. This accounts for ${inputs.averageReturn}% average return, ${inputs.taxRate}% tax, and ${inputs.inflation}% inflation.</div></div>`;
+    
+    // 6. Stress test failure details
+    if (stressData && stressData.failures.length > 0) {
+        let stressHtml = '<table class="data-table" style="font-size: 0.8125rem;"><thead><tr><th>Start Year</th><th class="text-center">Prev P/E</th><th class="text-right">85:15</th><th class="text-right">60:40</th></tr></thead><tbody>';
+        stressData.failures.forEach(f => {
+            const peColor = f.prevPE && f.prevPE > 25 ? 'var(--danger)' : f.prevPE && f.prevPE < 15 ? 'var(--success)' : 'var(--text-secondary)';
+            const peLabel = f.prevPE && f.prevPE > 25 ? ' (High)' : f.prevPE && f.prevPE < 15 ? ' (Low)' : '';
+            const peText = f.prevPE ? `<span style="color: ${peColor}; font-weight: 500;">${f.prevPE}${peLabel}</span>` : '-';
+            const t85 = f.s85.survived ? '<span style="color: var(--success);">Survived</span>' : `<span style="color: var(--danger);">${f.s85.yearsLasted} yrs (${f.s85.ranOutYear})</span>`;
+            const t60 = f.s60.survived ? '<span style="color: var(--success);">Survived</span>' : `<span style="color: var(--danger);">${f.s60.yearsLasted} yrs (${f.s60.ranOutYear})</span>`;
+            stressHtml += `<tr><td>${f.startYear}</td><td class="text-center">${peText}</td><td class="text-right">${t85}</td><td class="text-right">${t60}</td></tr>`;
+        });
+        stressHtml += '</tbody></table>';
+        html += `<div class="dd-item"><div class="dd-question">Stress test failure details</div><div class="dd-answer">${stressHtml}</div></div>`;
+    }
+    
+    // 7. Historical simulation (sample years)
+    if (simulation && simulation.split85_15 && simulation.split85_15.results && simulation.split85_15.results.length > 0) {
+        const sim85 = simulation.split85_15, sim60 = simulation.split60_40;
+        const peData = stressData ? stressData.peData : {};
+        const isSurp = results.gapAnalysis.isSurplus;
+        
+        const fmtPE = (year) => {
+            const pe = peData[year - 1];
+            if (!pe) return '-';
+            let color = 'var(--text-secondary)', label = '';
+            if (pe < 15) { color = 'var(--success)'; label = ' (Low)'; }
+            else if (pe > 25) { color = 'var(--danger)'; label = ' (High)'; }
+            return `<span style="color: ${color}; font-weight: 500;">${typeof pe === 'number' && pe % 1 !== 0 ? pe.toFixed(1) : pe}${label}</span>`;
+        };
+        
+        let simHtml = '<table class="data-table" style="font-size: 0.8125rem;"><thead><tr><th>Start</th><th class="text-center">P/E</th>';
+        simHtml += isSurp ? '<th class="text-right">85:15 End</th><th class="text-right">60:40 End</th>' : '<th class="text-right">85:15</th><th class="text-right">60:40</th><th>Status</th>';
+        simHtml += '</tr></thead><tbody>';
+        for (let i = 0; i < sim85.results.length; i++) {
+            const r85 = sim85.results[i], r60 = sim60.results[i];
+            simHtml += `<tr><td>${r85.startYear}</td><td class="text-center">${fmtPE(r85.startYear)}</td>`;
+            if (isSurp) {
+                simHtml += `<td class="text-right">${r85.survived ? formatCurrencyShort(r85.endingCorpus, inputs) : 'Out ' + r85.ranOutYear}</td><td class="text-right">${r60.survived ? formatCurrencyShort(r60.endingCorpus, inputs) : 'Out ' + r60.ranOutYear}</td>`;
+            } else {
+                const status = !r85.survived || !r60.survived ? '<span style="color: var(--danger);">Ran out</span>' : '<span style="color: var(--success);">OK</span>';
+                simHtml += `<td class="text-right">${r85.yearsSimulated} yrs</td><td class="text-right">${r60.yearsSimulated} yrs</td><td>${status}</td>`;
+            }
+            simHtml += '</tr>';
+        }
+        simHtml += '</tbody></table>';
+        html += `<div class="dd-item"><div class="dd-question">Historical simulation (sample years)</div><div class="dd-answer"><div style="font-size: 0.8125rem; color: var(--text-muted); margin-bottom: 0.5rem;">Corpus: ${formatCurrency(simulationCorpus, inputs)} | ${inputs.market === 'sensex' ? 'Sensex' : 'S&P 500'}</div>${simHtml}</div></div>`;
+    }
+    
+    document.getElementById('deeperDiveContent').innerHTML = html;
+}
+
+function toggleDeeperDive() {
+    document.getElementById('deeperDiveSection').classList.toggle('open');
 }
