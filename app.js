@@ -216,7 +216,7 @@ function renderCorpusOptions(results) {
             <div>This corpus is designed to last indefinitely by withdrawing only the sustainable yield each year, preserving your principal while keeping pace with inflation.</div>
         </div>`;
         
-        // Run perpetual stress test across ALL starting years
+        // Run perpetual stress test across ALL starting years with both allocations
         const marketReturns = inputs.market === 'sensex' ? getSensexReturns() : getSP500Returns();
         const peData = inputs.market === 'sensex' ? (typeof getSensexPE === 'function' ? getSensexPE() : {}) : (typeof getSP500PE === 'function' ? getSP500PE() : {});
         const expensesForSim = inputs.yearsToRetire === 0 ? inputs.yearlyExpenses : calculateInflationAdjustedExpenses(inputs.yearlyExpenses, inputs.inflation, inputs.yearsToRetire);
@@ -225,10 +225,9 @@ function renderCorpusOptions(results) {
         
         const failures = [];
         validYears.forEach(startYear => {
-            const result = runSimulationWithRebalancing({
+            const baseParams = {
                 startingCorpus: selectedCorpus.corpus,
                 yearlyExpenses: expensesForSim,
-                equityRatio: 0.85,
                 yieldRate: yieldResult.yield,
                 debtReturn: inputs.debtReturn,
                 inflationRate: inputs.inflation,
@@ -236,10 +235,17 @@ function renderCorpusOptions(results) {
                 startYear: startYear,
                 marketReturns: marketReturns,
                 maxYears: 50
-            });
-            if (!result.survived) {
+            };
+            const r85 = runSimulationWithRebalancing({ ...baseParams, equityRatio: 0.85 });
+            const r60 = runSimulationWithRebalancing({ ...baseParams, equityRatio: 0.60 });
+            if (!r85.survived || !r60.survived) {
                 const prevPE = peData[startYear - 1];
-                failures.push({ startYear, yearsLasted: result.yearsSimulated, ranOutYear: result.ranOutYear, prevPE: prevPE || null });
+                failures.push({
+                    startYear,
+                    prevPE: prevPE || null,
+                    s85: { survived: r85.survived, yearsLasted: r85.yearsSimulated, ranOutYear: r85.ranOutYear },
+                    s60: { survived: r60.survived, yearsLasted: r60.yearsSimulated, ranOutYear: r60.ranOutYear }
+                });
             }
         });
         
@@ -247,7 +253,7 @@ function renderCorpusOptions(results) {
             html += `
             <div style="padding: 0.75rem; background: var(--success-bg, #f0fdf4); border: 1px solid var(--success, #22c55e); border-radius: var(--radius-md); margin-top: 0.75rem;">
                 <div style="font-size: 0.875rem; color: var(--success, #22c55e); font-weight: 600;">✓ Stress Test Passed</div>
-                <div class="text-muted" style="font-size: 0.8rem; margin-top: 0.25rem;">Your perpetual corpus survived all ${validYears.length} historical starting years (${validYears[0]}–${validYears[validYears.length - 1]}) with an 85:15 allocation.</div>
+                <div class="text-muted" style="font-size: 0.8rem; margin-top: 0.25rem;">Your perpetual corpus survived all ${validYears.length} historical starting years (${validYears[0]}–${validYears[validYears.length - 1]}) in both 85:15 and 60:40 allocations.</div>
             </div>`;
         } else {
             html += `
@@ -255,12 +261,14 @@ function renderCorpusOptions(results) {
                 <div style="font-size: 0.875rem; color: var(--danger, #ef4444); font-weight: 600;">⚠ Stress Test Warning</div>
                 <div class="text-muted" style="font-size: 0.8rem; margin-top: 0.25rem;">Your perpetual corpus ran out in ${failures.length} of ${validYears.length} historical scenarios:</div>
                 <table class="data-table" style="margin-top: 0.5rem; font-size: 0.8rem;">
-                    <thead><tr><th>Starting Year</th><th class="text-center">Prev P/E</th><th class="text-right">Lasted</th><th class="text-right">Ran Out</th></tr></thead><tbody>`;
+                    <thead><tr><th>Starting Year</th><th class="text-center">Prev P/E</th><th class="text-right">85:15</th><th class="text-right">60:40</th></tr></thead><tbody>`;
             failures.forEach(f => {
                 const peColor = f.prevPE && f.prevPE > 25 ? 'var(--danger)' : f.prevPE && f.prevPE < 15 ? 'var(--success)' : 'var(--text-secondary)';
                 const peLabel = f.prevPE && f.prevPE > 25 ? ' (High)' : f.prevPE && f.prevPE < 15 ? ' (Low)' : '';
                 const peText = f.prevPE ? `<span style="color: ${peColor}; font-weight: 500;">${f.prevPE}${peLabel}</span>` : '-';
-                html += `<tr><td>${f.startYear}</td><td class="text-center">${peText}</td><td class="text-right">${f.yearsLasted} years</td><td class="text-right">${f.ranOutYear}</td></tr>`;
+                const text85 = f.s85.survived ? `<span style="color: var(--success);">Survived</span>` : `<span style="color: var(--danger);">${f.s85.yearsLasted} yrs (${f.s85.ranOutYear})</span>`;
+                const text60 = f.s60.survived ? `<span style="color: var(--success);">Survived</span>` : `<span style="color: var(--danger);">${f.s60.yearsLasted} yrs (${f.s60.ranOutYear})</span>`;
+                html += `<tr><td>${f.startYear}</td><td class="text-center">${peText}</td><td class="text-right">${text85}</td><td class="text-right">${text60}</td></tr>`;
             });
             html += `</tbody></table>
             </div>`;
