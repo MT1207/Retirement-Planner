@@ -5,8 +5,6 @@
  */
 
 const SENSEX_DATA = {
-    1991: 1908.85,
-    1992: 2615.37,
     1993: 3346.06,
     1994: 3926.90,
     1995: 3110.49,
@@ -47,8 +45,6 @@ const SENSEX_DATA = {
  * Source: BSE India / User provided data
  */
 const SENSEX_PE = {
-    1991: 36.0,
-    1992: 31.0,
     1993: 45.0,
     1994: 24.0,
     1995: 16.0,

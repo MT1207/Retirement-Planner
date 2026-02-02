@@ -4,7 +4,7 @@
  */
 
 const MARKET_DEFAULTS = {
-    sensex: { currency: '₹', currencySymbol: '₹', locale: 'en-IN', averageReturn: 12, taxRate: 12.5, debtReturn: 7, inflation: 7, dataRange: { startYear: 1992, endYear: 2025 } },
+    sensex: { currency: '₹', currencySymbol: '₹', locale: 'en-IN', averageReturn: 12, taxRate: 12.5, debtReturn: 7, inflation: 7, dataRange: { startYear: 1994, endYear: 2025 } },
     sp500: { currency: '$', currencySymbol: '$', locale: 'en-US', averageReturn: 9, taxRate: 15, debtReturn: 5, inflation: 3, dataRange: { startYear: 1986, endYear: 2025 } }
 };
 
@@ -318,7 +318,7 @@ function renderSimulation(results) {
         return `<span style="color: ${color}; font-weight: 500;">${pe.toFixed(1)}${label}</span>`;
     };
     
-    let tableHtml = `<div class="info-box mb-3"><svg class="info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg><div>This simulation shows how your retirement corpus would have performed if you had invested in different historical market conditions (${inputs.market === 'sensex' ? 'Sensex 1992-2025' : 'S&P 500 1986-2025'}). <strong>Prev P/E</strong> shows the previous year's P/E ratio - <span style="color: var(--success);">Low P/E (&lt;15)</span> historically leads to better returns, <span style="color: var(--danger);">High P/E (&gt;25)</span> to lower returns.</div></div>`;
+    let tableHtml = `<div class="info-box mb-3"><svg class="info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg><div>This simulation shows how your retirement corpus would have performed if you had invested in different historical market conditions (${inputs.market === 'sensex' ? 'Sensex 1994-2025' : 'S&P 500 1986-2025'}). <strong>Prev P/E</strong> shows the previous year's P/E ratio - <span style="color: var(--success);">Low P/E (&lt;15)</span> historically leads to better returns, <span style="color: var(--danger);">High P/E (&gt;25)</span> to lower returns.</div></div>`;
     tableHtml += `<p class="text-muted mb-3">Your Corpus: ${formatCurrency(simulationCorpus, inputs)}</p>`;
     
     if (isSurplus) {
