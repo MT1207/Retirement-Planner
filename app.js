@@ -215,6 +215,56 @@ function renderCorpusOptions(results) {
             <svg class="info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
             <div>This corpus is designed to last indefinitely by withdrawing only the sustainable yield each year, preserving your principal while keeping pace with inflation.</div>
         </div>`;
+        
+        // Run perpetual stress test across ALL starting years
+        const marketReturns = inputs.market === 'sensex' ? getSensexReturns() : getSP500Returns();
+        const peData = inputs.market === 'sensex' ? (typeof getSensexPE === 'function' ? getSensexPE() : {}) : (typeof getSP500PE === 'function' ? getSP500PE() : {});
+        const expensesForSim = inputs.yearsToRetire === 0 ? inputs.yearlyExpenses : calculateInflationAdjustedExpenses(inputs.yearlyExpenses, inputs.inflation, inputs.yearsToRetire);
+        const allYears = Object.keys(marketReturns).map(Number).sort((a, b) => a - b);
+        const validYears = allYears.filter(y => y <= allYears[allYears.length - 1] - 10); // need at least 10 years of data
+        
+        const failures = [];
+        validYears.forEach(startYear => {
+            const result = runSimulationWithRebalancing({
+                startingCorpus: selectedCorpus.corpus,
+                yearlyExpenses: expensesForSim,
+                equityRatio: 0.85,
+                yieldRate: yieldResult.yield,
+                debtReturn: inputs.debtReturn,
+                inflationRate: inputs.inflation,
+                taxRate: inputs.taxRate,
+                startYear: startYear,
+                marketReturns: marketReturns,
+                maxYears: 50
+            });
+            if (!result.survived) {
+                const prevPE = peData[startYear - 1];
+                failures.push({ startYear, yearsLasted: result.yearsSimulated, ranOutYear: result.ranOutYear, prevPE: prevPE || null });
+            }
+        });
+        
+        if (failures.length === 0) {
+            html += `
+            <div style="padding: 0.75rem; background: var(--success-bg, #f0fdf4); border: 1px solid var(--success, #22c55e); border-radius: var(--radius-md); margin-top: 0.75rem;">
+                <div style="font-size: 0.875rem; color: var(--success, #22c55e); font-weight: 600;">✓ Stress Test Passed</div>
+                <div class="text-muted" style="font-size: 0.8rem; margin-top: 0.25rem;">Your perpetual corpus survived all ${validYears.length} historical starting years (${validYears[0]}–${validYears[validYears.length - 1]}) with an 85:15 allocation.</div>
+            </div>`;
+        } else {
+            html += `
+            <div style="padding: 0.75rem; background: var(--danger-bg, #fef2f2); border: 1px solid var(--danger, #ef4444); border-radius: var(--radius-md); margin-top: 0.75rem;">
+                <div style="font-size: 0.875rem; color: var(--danger, #ef4444); font-weight: 600;">⚠ Stress Test Warning</div>
+                <div class="text-muted" style="font-size: 0.8rem; margin-top: 0.25rem;">Your perpetual corpus ran out in ${failures.length} of ${validYears.length} historical scenarios:</div>
+                <table class="data-table" style="margin-top: 0.5rem; font-size: 0.8rem;">
+                    <thead><tr><th>Starting Year</th><th class="text-center">Prev P/E</th><th class="text-right">Lasted</th><th class="text-right">Ran Out</th></tr></thead><tbody>`;
+            failures.forEach(f => {
+                const peColor = f.prevPE && f.prevPE > 25 ? 'var(--danger)' : f.prevPE && f.prevPE < 15 ? 'var(--success)' : 'var(--text-secondary)';
+                const peLabel = f.prevPE && f.prevPE > 25 ? ' (High)' : f.prevPE && f.prevPE < 15 ? ' (Low)' : '';
+                const peText = f.prevPE ? `<span style="color: ${peColor}; font-weight: 500;">${f.prevPE}${peLabel}</span>` : '-';
+                html += `<tr><td>${f.startYear}</td><td class="text-center">${peText}</td><td class="text-right">${f.yearsLasted} years</td><td class="text-right">${f.ranOutYear}</td></tr>`;
+            });
+            html += `</tbody></table>
+            </div>`;
+        }
     } else {
         html += `
         <div class="info-box mt-3">
