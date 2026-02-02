@@ -78,7 +78,7 @@ function runMultipleSimulations(params, startingYears, marketReturns) {
 
 function findCorpusForDuration(params, targetYears, testYears, marketReturns) {
     if (!testYears || testYears.length === 0) {
-        return { results: [], minCorpus: params.yearlyExpenses * targetYears, maxCorpus: params.yearlyExpenses * targetYears, avgCorpus: params.yearlyExpenses * targetYears };
+        return { results: [], minCorpus: params.yearlyExpenses * targetYears, maxCorpus: params.yearlyExpenses * targetYears, avgCorpus: params.yearlyExpenses * targetYears, minYear: null, maxYear: null };
     }
     const corpusResults = [];
     for (const startYear of testYears) {
@@ -94,7 +94,11 @@ function findCorpusForDuration(params, targetYears, testYears, marketReturns) {
         corpusResults.push({ startYear: startYear, corpus: (low + high) / 2 });
     }
     const corpusValues = corpusResults.map(r => r.corpus);
-    return { results: corpusResults, minCorpus: Math.min(...corpusValues), maxCorpus: Math.max(...corpusValues), avgCorpus: corpusValues.reduce((a, b) => a + b, 0) / corpusValues.length };
+    const minCorpus = Math.min(...corpusValues);
+    const maxCorpus = Math.max(...corpusValues);
+    const minEntry = corpusResults.find(r => r.corpus === minCorpus);
+    const maxEntry = corpusResults.find(r => r.corpus === maxCorpus);
+    return { results: corpusResults, minCorpus, maxCorpus, avgCorpus: corpusValues.reduce((a, b) => a + b, 0) / corpusValues.length, minYear: minEntry ? minEntry.startYear : null, maxYear: maxEntry ? maxEntry.startYear : null };
 }
 
 function getValidStartingYears(dataRange, duration) {

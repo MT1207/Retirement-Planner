@@ -136,7 +136,7 @@ function calculateCorpusOptions(inputs, expensesAtRetirement, perpetualYield, ma
             if (testYears.length > 0) {
                 try {
                     const corpusResult = findCorpusForDuration({ yearlyExpenses: expensesAtRetirement, equityRatio: 0.85, yieldRate: perpetualYield, debtReturn: inputs.debtReturn, inflationRate: inputs.inflation, taxRate: inputs.taxRate }, years, testYears, marketReturns);
-                    options[years.toString()] = { duration: `${years} years`, corpus: corpusResult.avgCorpus, range: { min: corpusResult.minCorpus, max: corpusResult.maxCorpus } };
+                    options[years.toString()] = { duration: `${years} years`, corpus: corpusResult.avgCorpus, range: { min: corpusResult.minCorpus, max: corpusResult.maxCorpus, minYear: corpusResult.minYear, maxYear: corpusResult.maxYear } };
                 } catch (e) {
                     options[years.toString()] = { duration: `${years} years`, corpus: options.perpetual.corpus * (years / 50), range: null, estimated: true };
                 }
@@ -224,17 +224,29 @@ function renderCorpusOptions(results) {
         
         // Show range only for non-perpetual options
         if (selectedCorpus.range) {
+            // Get P/E data for context
+            const peData = inputs.market === 'sensex' ? (typeof getSensexPE === 'function' ? getSensexPE() : {}) : (typeof getSP500PE === 'function' ? getSP500PE() : {});
+            const minYear = selectedCorpus.range.minYear;
+            const maxYear = selectedCorpus.range.maxYear;
+            const minPrevPE = minYear && peData[minYear - 1] ? peData[minYear - 1] : null;
+            const maxPrevPE = maxYear && peData[maxYear - 1] ? peData[maxYear - 1] : null;
+            
+            const minYearText = minYear ? `Starting ${minYear}` : 'Best case';
+            const maxYearText = maxYear ? `Starting ${maxYear}` : 'Worst case';
+            const minPEText = minPrevPE ? ` · P/E ${minPrevPE}` : '';
+            const maxPEText = maxPrevPE ? ` · P/E ${maxPrevPE}` : '';
+            
             html += `
             <div class="metric-grid mt-3">
                 <div class="metric-box">
                     <div class="metric-label">Minimum Required</div>
                     <div class="metric-value">${formatCurrency(selectedCorpus.range.min, inputs)}</div>
-                    <div class="text-muted">Best case scenario</div>
+                    <div class="text-muted">${minYearText}${minPEText}</div>
                 </div>
                 <div class="metric-box">
                     <div class="metric-label">Maximum Required</div>
                     <div class="metric-value">${formatCurrency(selectedCorpus.range.max, inputs)}</div>
-                    <div class="text-muted">Worst case scenario</div>
+                    <div class="text-muted">${maxYearText}${maxPEText}</div>
                 </div>
             </div>`;
         }
